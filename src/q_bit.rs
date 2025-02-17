@@ -159,7 +159,7 @@ pub async fn rename_files(
     let mut tasks = Vec::new();
 
     for file in torrent_files {
-        let new_path = apply_rename_rules(&file.name, rename_rules);
+        let new_path = apply_rename_rules_to_file(&file.name, rename_rules);
 
         if file.name != new_path {
             let rename_file_url = format!("{}/api/v2/torrents/renameFile", webui_url);
@@ -214,4 +214,38 @@ fn apply_rename_rules(name: &str, compiled_rules: &Vec<(Regex, &str)>) -> String
     }
 
     new_name.trim().to_string()
+}
+
+/// 将文件名应用重命名规则，不改变文件扩展名
+fn apply_rename_rules_to_file(name: &str, compiled_rules: &Vec<(Regex, &str)>) -> String {
+    let (mut stem, ext) = split_filename(name);
+
+    // 仅对主名部分应用替换规则
+    for (re, replacement) in compiled_rules {
+        stem = re.replace_all(&stem, *replacement).into_owned();
+    }
+
+    let stem = stem.trim();
+
+    // 重新组合主名和扩展名
+    if ext.is_empty() {
+        stem.to_string()
+    } else {
+        format!("{}.{}", stem, ext)
+    }
+}
+
+/// 将文件名拆分为主名和扩展名
+fn split_filename(name: &str) -> (String, String) {
+    if let Some(dot_pos) = name.rfind('.') {
+        if dot_pos == 0 || dot_pos == name.len() - 1 {
+            (name.to_string(), String::new())
+        } else {
+            let (stem, ext_with_dot) = name.split_at(dot_pos);
+            let ext = &ext_with_dot[1..];
+            (stem.to_string(), ext.to_string())
+        }
+    } else {
+        (name.to_string(), String::new())
+    }
 }
