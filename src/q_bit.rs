@@ -1,3 +1,4 @@
+use std::sync::LazyLock;
 use crate::log;
 
 use crate::logger::LogUnwrap;
@@ -233,17 +234,35 @@ fn apply_rename_rules_to_file(name: &str, compiled_rules: &Vec<(Regex, &str)>) -
     }
 }
 
-/// 将文件名拆分为主名和扩展名
-fn split_filename(name: &str) -> (String, String) {
-    if let Some(dot_pos) = name.rfind('.') {
-        if dot_pos == 0 || dot_pos == name.len() - 1 {
-            (name.to_string(), String::new())
-        } else {
-            let (stem, ext_with_dot) = name.split_at(dot_pos);
-            let ext = &ext_with_dot[1..];
-            (stem.to_string(), ext.to_string())
-        }
-    } else {
-        (name.to_string(), String::new())
+
+
+/// 将文件名拆分为主名和扩展名 FILE_EXTENSION_SPLIT 
+fn split_filename(filename: &str) -> (String, String) {
+    static RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"^(.*?)\.(tar\.(?:gz|xz|bz2)|cpio\.(?:gz|bz2)|(?:7z|rar|zip)\.\d{3}|[^.]+)$").unwrap()
+    });
+
+    RE.captures(filename)
+        .map(|caps| (caps[1].to_string(), caps[2].to_string()))
+        .unwrap_or_else(|| (filename.to_string(), String::new()))
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_2025_02_17_16_36_27() {
+        assert_eq!(split_filename(""), ("".into(), "".into()));
+        assert_eq!(split_filename("."), (".".into(), "".into()));
+        assert_eq!(split_filename("f"), ("f".into(), "".into()));
+        assert_eq!(split_filename(".f"), ("".into(), "f".into()));
+        assert_eq!(split_filename("f."), ("f.".into(), "".into()));
+        assert_eq!(split_filename("a.b.c.d.f"), ("a.b.c.d".into(), "f".into()));
+        assert_eq!(split_filename("abc.tar.gz"), ("abc".into(), "tar.gz".into()));
+        assert_eq!(split_filename("abc.7z.001"), ("abc".into(), "7z.001".into()));
+        assert_eq!(split_filename("file.with.dots.txt"), ("file.with.dots".into(), "txt".into()));
+        assert_eq!(split_filename("no_extension"), ("no_extension".into(), "".into()));
     }
 }
