@@ -62,6 +62,7 @@ pub async fn get_torrent_info(
     webui_url: &str,
     torrent_hash: &str,
 ) -> Result<TorrentInfo, String> {
+    // https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)#get-torrent-list
     let info_url = format!("{}/api/v2/torrents/info?hashes={}", webui_url, torrent_hash);
     let info_response = client
         .get(&info_url)
@@ -76,12 +77,10 @@ pub async fn get_torrent_info(
         ));
     }
 
-    let info_response_text = info_response
-        .text()
+    let torrent_info: Vec<TorrentInfo> = info_response
+        .json()
         .await
-        .log_unwrap("Failed to read torrent info response");
-    let torrent_info: Vec<TorrentInfo> =
-        serde_json::from_str(&info_response_text).log_unwrap("Failed to parse torrent info");
+        .log_unwrap("Failed to parse torrent info");
 
     if torrent_info.is_empty() {
         return Err(format!("No torrent found with hash: {}", torrent_hash));
@@ -100,7 +99,7 @@ pub async fn rename_torrent(
     let torrent = get_torrent_info(client, webui_url, torrent_hash)
         .await
         .log_unwrap("Failed to get torrent info");
-    
+
     let new_name = apply_rename_rules(&torrent.name, rename_rules);
 
     if torrent.name != new_name {
@@ -135,6 +134,7 @@ pub async fn rename_files(
     torrent_hash: &str,
     rename_rules: &Vec<(Regex, &str)>,
 ) -> Result<(), String> {
+    // https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)#get-torrent-contents
     let files_url = format!("{}/api/v2/torrents/files?hash={}", webui_url, torrent_hash);
     let files_response = client
         .get(&files_url)
@@ -149,11 +149,9 @@ pub async fn rename_files(
         ));
     }
 
-    let files_response_text = files_response
-        .text()
+    let torrent_files: Vec<TorrentFile> = files_response
+        .json()
         .await
-        .map_err(|e| format!("Failed to read torrent files response: {}", e))?;
-    let torrent_files: Vec<TorrentFile> = serde_json::from_str(&files_response_text)
         .map_err(|e| format!("Failed to parse torrent files: {}", e))?;
 
     let mut tasks = Vec::new();

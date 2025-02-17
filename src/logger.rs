@@ -6,8 +6,8 @@ use std::sync::{Mutex, OnceLock};
 static LOG_FILE_PATH: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 
 // 设置日志文件路径
-pub fn set_log_file(path: &str) {
-    LOG_FILE_PATH.get_or_init(|| Mutex::new(Some(path.to_string())));
+pub fn set_log_file(path: String) {
+    LOG_FILE_PATH.get_or_init(|| Mutex::new(Some(path)));
 }
 
 pub trait LogUnwrap<T> {
