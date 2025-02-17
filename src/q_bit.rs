@@ -1,5 +1,4 @@
-use std::sync::LazyLock;
-use crate::log;
+use crate::{log, re};
 
 use crate::logger::LogUnwrap;
 use regex::Regex;
@@ -217,7 +216,7 @@ fn apply_rename_rules(name: &str, compiled_rules: &Vec<(Regex, &str)>) -> String
 
 /// 将文件名应用重命名规则，不改变文件扩展名
 fn apply_rename_rules_to_file(name: &str, compiled_rules: &Vec<(Regex, &str)>) -> String {
-    let (mut stem, ext) = split_filename(name);
+    let (mut stem, ext) = re::split_filename(name);
 
     // 仅对主名部分应用替换规则
     for (re, replacement) in compiled_rules {
@@ -231,38 +230,5 @@ fn apply_rename_rules_to_file(name: &str, compiled_rules: &Vec<(Regex, &str)>) -
         stem.to_string()
     } else {
         format!("{}.{}", stem, ext)
-    }
-}
-
-
-
-/// 将文件名拆分为主名和扩展名 FILE_EXTENSION_SPLIT 
-fn split_filename(filename: &str) -> (String, String) {
-    static RE: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"^(.*?)\.(tar\.(?:gz|xz|bz2)|cpio\.(?:gz|bz2)|(?:7z|rar|zip)\.\d{3}|[^.]+)$").unwrap()
-    });
-
-    RE.captures(filename)
-        .map(|caps| (caps[1].to_string(), caps[2].to_string()))
-        .unwrap_or_else(|| (filename.to_string(), String::new()))
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_2025_02_17_16_36_27() {
-        assert_eq!(split_filename(""), ("".into(), "".into()));
-        assert_eq!(split_filename("."), (".".into(), "".into()));
-        assert_eq!(split_filename("f"), ("f".into(), "".into()));
-        assert_eq!(split_filename(".f"), ("".into(), "f".into()));
-        assert_eq!(split_filename("f."), ("f.".into(), "".into()));
-        assert_eq!(split_filename("a.b.c.d.f"), ("a.b.c.d".into(), "f".into()));
-        assert_eq!(split_filename("abc.tar.gz"), ("abc".into(), "tar.gz".into()));
-        assert_eq!(split_filename("abc.7z.001"), ("abc".into(), "7z.001".into()));
-        assert_eq!(split_filename("file.with.dots.txt"), ("file.with.dots".into(), "txt".into()));
-        assert_eq!(split_filename("no_extension"), ("no_extension".into(), "".into()));
     }
 }

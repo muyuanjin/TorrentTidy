@@ -1,5 +1,6 @@
 mod logger;
 mod q_bit;
+mod re;
 
 use crate::logger::LogUnwrap;
 use clap::Parser;
@@ -51,7 +52,6 @@ async fn main() {
             )
         })
         .collect();
-
 
     let mut builder = Client::builder().cookie_store(true);
 
