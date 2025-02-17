@@ -47,7 +47,7 @@ cargo build --release
 ```text
 -w, --webui-url     [必需] qBittorrent WebUI 地址
 -t, --torrent-hash  [必需] 种子哈希值 (使用 %I 占位符)
--r, --rename-rules  [必需] 替换规则 (格式: 正则模式=替换文本)，支持多个
+-r, --rename-rules  [必需] 替换规则 (格式: 正则模式=替换文本)，支持多个，不影响文件扩展名
 -u, --username      WebUI 用户名，如果设置了用户名密码则需要
 -p, --password      WebUI 密码，如果设置了用户名密码则需要
 -v, --use-vpn       是否通过 VPN 连接 qBittorrent
@@ -72,14 +72,15 @@ cargo build --release
 
 ## 📸 效果示例
 
-**命令行参数**
+**命令行参数**  
+
 `D:\torrent-tidy.exe -w "http://localhost:8080" -t "%I" -r "[\[【].*(电影|高清|原盘|蓝光|发布).*?[】\]]=" -r "\.= "`  
 
-**原始文件名**
+**处理前**
 
 `【高清影视家园发布 www.XXX.com】小丑2：双重妄想[HDR+杜比视界双版本][中文字幕].2024.2160p.UHD.BluRay.Remux.DV.HEVC.TrueHD7.1-ParkHD`
 
-**处理后文件名**
+**处理后**
 
 `小丑2：双重妄想[HDR+杜比视界双版本][中文字幕] 2024 2160p UHD BluRay Remux DV HEVC TrueHD7 1-ParkHD`
 
@@ -137,7 +138,7 @@ cargo build --release
 ```text
 -w, --webui-url     [Required] qBittorrent WebUI address
 -t, --torrent-hash  [Required] Torrent hash (use %I placeholder)
--r, --rename-rules  [Required] Replacement rules (format: regex pattern=replacement text), multiple supported
+-r, --rename-rules  [Required] Replacement rules (format: regex pattern=replacement text), multiple supported, does not affect the file extension
 -u, --username      WebUI username, required if username and password are set
 -p, --password      WebUI password, required if username and password are set
 -v, --use-vpn       Whether to connect to qBittorrent via VPN
@@ -162,16 +163,17 @@ cargo build --release
 
 ## 📸 Torrent Rename Example
 
-**External command**
+**External command**  
+
 `D:\torrent-tidy.exe -w "http://localhost:8080" -t "%I" -r "[\[【].*(movie|Group).*?[】\]]=" -r "\.= "`
 
-**Original Torrent Name**
+**Original Name**
 
-`【Awesome Group - www.example.com】Joker.Folie.a.Deux.[Dual HDR+Dolby Vision][Eng Subs].2024.2160p.UHD.BluRay.Remux.DV.HEVC.TrueHD7.1-Group`
+`【Awesome Group - www.example.com】Joker.Folie.a.Deux.2024.2160p.UHD.BluRay.Remux.DV.HEVC.TrueHD7.1-Group.mkv`
 
-**Processed Torrent Name**
+**Processed Name**
 
-`Joker: Folie a Deux [Dual HDR+Dolby Vision][Eng Subs] 2024 2160p UHD BluRay Remux DV HEVC TrueHD7 1-Group`
+`Joker: Folie a Deux 2024 2160p UHD BluRay Remux DV HEVC TrueHD7 1-Group.mkv`
 
 ## 📄 License
 
