@@ -104,14 +104,13 @@ async fn main() {
 
     let vpn = matches.contains_id("vpn");
 
-    let client = if vpn {
-        Client::new()
-    } else {
-        Client::builder()
-            .no_proxy()
-            .build()
-            .log_unwrap("Failed to create reqwest client")
-    };
+    let mut builder = Client::builder().cookie_store(true);
+
+    if !vpn {
+        builder = builder.no_proxy();
+    }
+
+    let client = builder.build().log_unwrap("Failed to create http client");
 
     // 如果提供了用户名和密码，则进行认证
     if let (Some(username), Some(password)) = (username, password) {
