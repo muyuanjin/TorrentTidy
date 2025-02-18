@@ -46,10 +46,7 @@ async fn main() {
             let index = rule.rfind('=').log_unwrap("Invalid rename rule: missing '='");
             let (pattern_part, replacement_with_eq) = rule.split_at(index);
             let replacement = &replacement_with_eq[1..];
-            (
-                pattern_part,
-                replacement,
-            )
+            (pattern_part, replacement)
         }));
     
     let mut builder = Client::builder().cookie_store(true);

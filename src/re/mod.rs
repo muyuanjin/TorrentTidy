@@ -1,6 +1,6 @@
 use regex_automata::{dfa::Automaton, Anchored, Input};
 
-mod file_extension_split;
+mod split;
 mod replace;
 pub use crate::re::replace::CompoundReplacer as CompoundReplacer;
 
@@ -16,13 +16,13 @@ pub use crate::re::replace::CompoundReplacer as CompoundReplacer;
 ///  --safe `
 ///  --reverse `
 ///  --captures none `
-///  FILE_EXTENSION_SPLIT `
+///  SPLIT `
 ///  ./src/re/ `
 ///  "\.(tar\.(?:gz|xz|bz2)|cpio\.(?:gz|bz2)|(?:7z|rar|zip)\.\d{3}|[^.]+)"
 /// ```
 pub fn split_filename(filename: &str) -> (String, String) {
     let input = Input::new(filename).anchored(Anchored::Yes);
-    match file_extension_split::FILE_EXTENSION_SPLIT.try_search_rev(&input) {
+    match split::SPLIT.try_search_rev(&input) {
         Ok(Some(index)) => {
             let (main, ext) = filename.split_at(index.offset());
             // 去除index位置的点

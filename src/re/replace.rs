@@ -2,7 +2,9 @@ use std::borrow::Borrow;
 use std::sync::Arc;
 use regex::{Captures, Regex};
 use regex::Replacer;
+use crate::logger::LogUnwrap;
 
+/// 一种支持多个正则表达式替换的替换器
 #[derive(Debug, Clone)]
 pub struct CompoundReplacer {
     compound_re: Regex,
@@ -48,7 +50,7 @@ impl CompoundReplacer {
             .join("|");
 
         Self {
-            compound_re: Regex::new(&regex_str).unwrap(),
+            compound_re: Regex::new(&regex_str).log_unwrap(&format!("Invalid regex: {}", regex_str)),
             group_names: Arc::new(group_names),
             replacements: Arc::new(replacements),
         }
@@ -75,9 +77,9 @@ mod tests {
         assert_eq!(
             compound_replacement(
                 "a b c a b c c b a b b a a c a b e f g",
-                &[("a", "1"), ("b", "2"), ("c", "3")]
+                &[("a", "1"), ("b", "2"), ("c", "3"), (r"[^abc\s]", "4")]
             ),
-            "1 2 3 1 2 3 3 2 1 2 2 1 1 3 1 2 e f g"
+            "1 2 3 1 2 3 3 2 1 2 2 1 1 3 1 2 4 4 4"
         );
         assert_eq!(
             compound_replacement(

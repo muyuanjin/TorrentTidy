@@ -34,13 +34,13 @@ use regex_automata::{
     util::{lazy::Lazy, wire::AlignAs},
 };
 
-pub static FILE_EXTENSION_SPLIT: Lazy<DFA<&'static [u32]>> = Lazy::new(|| {
+pub static SPLIT: Lazy<DFA<&'static [u32]>> = Lazy::new(|| {
     static ALIGNED: &AlignAs<[u8], u32> = &AlignAs {
         _align: [],
         #[cfg(target_endian = "big")]
-        bytes: *include_bytes!("../src/re/file_extension_split.bigendian.dfa"),
+        bytes: *include_bytes!("../src/re/split.bigendian.dfa"),
         #[cfg(target_endian = "little")]
-        bytes: *include_bytes!("../src/re/file_extension_split.littleendian.dfa"),
+        bytes: *include_bytes!("../src/re/split.littleendian.dfa"),
     };
     let (dfa, _) = regex_automata::dfa::dense::DFA::from_bytes(&ALIGNED.bytes).expect("serialized DFA should be valid");
     dfa
@@ -49,7 +49,7 @@ pub static FILE_EXTENSION_SPLIT: Lazy<DFA<&'static [u32]>> = Lazy::new(|| {
 /// 将文件名拆分为主名和扩展名 FILE_EXTENSION_SPLIT
 fn split_filename_new(filename: &str) -> (String, String) {
     let input = Input::new(filename).anchored(Anchored::Yes);
-    match FILE_EXTENSION_SPLIT.try_search_rev(&input) {
+    match SPLIT.try_search_rev(&input) {
         Ok(Some(index)) => {
             let (main, ext) = filename.split_at(index.offset());
             // 去除index位置的点

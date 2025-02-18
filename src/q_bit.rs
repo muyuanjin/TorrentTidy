@@ -90,6 +90,34 @@ pub async fn get_torrent_info(
     Ok(torrent_info[0].clone())
 }
 
+pub async fn get_torrent_files(
+    client: &Client,
+    webui_url: &str,
+    torrent_hash: &str,
+) -> Result<Vec<TorrentFile>, String> {
+    // https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)#get-torrent-contents
+    let files_url = format!("{}/api/v2/torrents/files?hash={}", webui_url, torrent_hash);
+    let files_response = client
+        .get(&files_url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch torrent files: {}", e))?;
+
+    if !files_response.status().is_success() {
+        return Err(format!(
+            "Failed to fetch torrent files: {}",
+            files_response.status()
+        ));
+    }
+
+    let torrent_files: Vec<TorrentFile> = files_response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse torrent files: {}", e))?;
+    
+    Ok(torrent_files)
+}
+
 pub async fn rename_torrent(
     client: &Client,
     webui_url: &str,
@@ -134,31 +162,14 @@ pub async fn rename_files(
     torrent_hash: &str,
     compound_replacer: &CompoundReplacer,
 ) -> Result<(), String> {
-    // https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)#get-torrent-contents
-    let files_url = format!("{}/api/v2/torrents/files?hash={}", webui_url, torrent_hash);
-    let files_response = client
-        .get(&files_url)
-        .send()
+    let torrent_files: Vec<TorrentFile> = get_torrent_files(client, webui_url, torrent_hash)
         .await
-        .map_err(|e| format!("Failed to fetch torrent files: {}", e))?;
-
-    if !files_response.status().is_success() {
-        return Err(format!(
-            "Failed to fetch torrent files: {}",
-            files_response.status()
-        ));
-    }
-
-    let torrent_files: Vec<TorrentFile> = files_response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse torrent files: {}", e))?;
+        .log_unwrap("Failed to get torrent files");
 
     let mut tasks = Vec::new();
 
     for file in torrent_files {
         let new_path = apply_rename_rules_to_file(&file.name, compound_replacer);
-
         if file.name != new_path {
             let rename_file_url = format!("{}/api/v2/torrents/renameFile", webui_url);
             let rename_file_request = RenameFileRequest {
