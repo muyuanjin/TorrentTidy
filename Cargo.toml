@@ -27,5 +27,9 @@ regex-automata = { version = "0.4", features = ["std", "dfa-search"] }
 criterion = "0.5"
 
 [[bench]]
-name = "my_benchmark"
+name = "split"
+harness = false
+
+[[bench]]
+name = "replace"
 harness = false

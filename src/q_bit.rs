@@ -1,7 +1,7 @@
 use crate::{log, re};
 
 use crate::logger::LogUnwrap;
-use regex::Regex;
+use crate::re::CompoundReplacer;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tokio::task;
@@ -94,13 +94,13 @@ pub async fn rename_torrent(
     client: &Client,
     webui_url: &str,
     torrent_hash: &str,
-    rename_rules: &Vec<(Regex, &str)>,
+    compound_replacer: &CompoundReplacer,
 ) -> Result<(), String> {
     let torrent = get_torrent_info(client, webui_url, torrent_hash)
         .await
         .log_unwrap("Failed to get torrent info");
 
-    let new_name = apply_rename_rules(&torrent.name, rename_rules);
+    let new_name = compound_replacer.replace(&torrent.name);
 
     if torrent.name != new_name {
         let rename_url = format!("{}/api/v2/torrents/rename", webui_url);
@@ -132,7 +132,7 @@ pub async fn rename_files(
     client: &Client,
     webui_url: &str,
     torrent_hash: &str,
-    rename_rules: &Vec<(Regex, &str)>,
+    compound_replacer: &CompoundReplacer,
 ) -> Result<(), String> {
     // https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)#get-torrent-contents
     let files_url = format!("{}/api/v2/torrents/files?hash={}", webui_url, torrent_hash);
@@ -157,7 +157,7 @@ pub async fn rename_files(
     let mut tasks = Vec::new();
 
     for file in torrent_files {
-        let new_path = apply_rename_rules_to_file(&file.name, rename_rules);
+        let new_path = apply_rename_rules_to_file(&file.name, compound_replacer);
 
         if file.name != new_path {
             let rename_file_url = format!("{}/api/v2/torrents/renameFile", webui_url);
@@ -204,26 +204,12 @@ pub async fn rename_files(
     Ok(())
 }
 
-fn apply_rename_rules(name: &str, compiled_rules: &Vec<(Regex, &str)>) -> String {
-    let mut new_name = name.to_string();
-
-    for (re, replacement) in compiled_rules {
-        new_name = re.replace_all(&new_name, *replacement).into_owned();
-    }
-
-    new_name.trim().to_string()
-}
-
 /// 将文件名应用重命名规则，不改变文件扩展名
-fn apply_rename_rules_to_file(name: &str, compiled_rules: &Vec<(Regex, &str)>) -> String {
-    let (mut stem, ext) = re::split_filename(name);
+fn apply_rename_rules_to_file(name: &str, compound_replacer: &CompoundReplacer) -> String {
+    let (stem, ext) = re::split_filename(name);
 
     // 仅对主名部分应用替换规则
-    for (re, replacement) in compiled_rules {
-        stem = re.replace_all(&stem, *replacement).into_owned();
-    }
-
-    let stem = stem.trim();
+    let stem = compound_replacer.replace(stem.as_str());
 
     // 重新组合主名和扩展名
     if ext.is_empty() {

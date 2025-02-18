@@ -1,6 +1,8 @@
 use regex_automata::{dfa::Automaton, Anchored, Input};
 
 mod file_extension_split;
+mod replace;
+pub use crate::re::replace::CompoundReplacer as CompoundReplacer;
 
 /// 将文件名拆分为主名和扩展名 FILE_EXTENSION_SPLIT  
 /// 使用 regex_cli 对正则表达式进行预编译，运行时通过读取字节反序列化，减少90%的运行时开销  

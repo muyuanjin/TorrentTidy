@@ -3,8 +3,8 @@ mod q_bit;
 mod re;
 
 use crate::logger::LogUnwrap;
+use crate::re::CompoundReplacer;
 use clap::Parser;
-use regex::Regex;
 use reqwest::Client;
 
 #[derive(Parser, Debug)]
@@ -40,19 +40,18 @@ async fn main() {
     let torrent_hash = args.torrent_hash;
 
     // 提取参数 重命名规则，提前编译正则表达式
-    let rename_rules: Vec<(Regex, &str)> = args.rename_rules
+    let compound_replacer = CompoundReplacer::new(args.rename_rules
         .iter()
         .map(|rule| {
             let index = rule.rfind('=').log_unwrap("Invalid rename rule: missing '='");
             let (pattern_part, replacement_with_eq) = rule.split_at(index);
             let replacement = &replacement_with_eq[1..];
             (
-                Regex::new(pattern_part).log_unwrap("Invalid regex pattern"),
+                pattern_part,
                 replacement,
             )
-        })
-        .collect();
-
+        }));
+    
     let mut builder = Client::builder().cookie_store(true);
 
     if !args.vpn {
@@ -71,7 +70,7 @@ async fn main() {
     }
     // 并行执行重命名种子和重命名文件
     let (_, _) = tokio::join!(
-        q_bit::rename_torrent(&client, &webui_url, &torrent_hash, &rename_rules),
-        q_bit::rename_files(&client, &webui_url, &torrent_hash, &rename_rules)
+        q_bit::rename_torrent(&client, &webui_url, &torrent_hash, &compound_replacer),
+        q_bit::rename_files(&client, &webui_url, &torrent_hash, &compound_replacer)
     );
 }
