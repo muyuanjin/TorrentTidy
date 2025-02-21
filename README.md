@@ -47,7 +47,7 @@ cargo build --release
 ```text
 -w, --webui-url     [必需] qBittorrent WebUI 地址
 -t, --torrent-hash  [必需] 种子哈希值 (使用 %I 占位符)
--r, --rename-rules  [必需] 替换规则 (格式: 正则模式=替换文本)，支持多个，不影响文件扩展名
+-r, --rename-rules  [必需] 替换规则 (格式: 正则模式=替换文本，或者指向一个文本文件，文件内每两行视为一条规则)，支持多个，不影响文件扩展名
 -u, --username      WebUI 用户名，如果设置了用户名密码则需要
 -p, --password      WebUI 密码，如果设置了用户名密码则需要
 -v, --use-vpn       是否通过 VPN 连接 qBittorrent
@@ -68,6 +68,9 @@ cargo build --release
 
 # 将点替换为空格
 -r "\.= "
+
+# 从文件中读取规则，每两行视为一条规则（如果规则在命令行转义下比较难输入，或者与=冲突，或者条目较多的情况下）
+-r "file://path/to/rules.txt"
 ```
 
 ## 📸 效果示例
@@ -138,7 +141,7 @@ cargo build --release
 ```text
 -w, --webui-url     [Required] qBittorrent WebUI address
 -t, --torrent-hash  [Required] Torrent hash (use %I placeholder)
--r, --rename-rules  [Required] Replacement rules (format: regex pattern=replacement text), multiple supported, does not affect the file extension
+-r, --rename-rules  [Required] Replacement rules (format: regex pattern=replacement text, or point to a text file where every two lines in the file are considered one rule), multiple supported, does not affect the file extension
 -u, --username      WebUI username, required if username and password are set
 -p, --password      WebUI password, required if username and password are set
 -v, --use-vpn       Whether to connect to qBittorrent via VPN
@@ -159,6 +162,9 @@ cargo build --release
 
 # Replace the dot with a space
 -r "\.= "
+
+# Reads rules from a file, with every two lines considered a rule (if the rule is harder to enter with command line escaping, or conflicts with =, or if there are more entries)
+-r "file://path/to/rules.txt"
 ```
 
 ## 📸 Torrent Rename Example

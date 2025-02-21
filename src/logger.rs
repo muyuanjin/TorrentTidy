@@ -42,10 +42,10 @@ impl<T> LogUnwrap<T> for Option<T> {
 #[macro_export]
 macro_rules! log {
     ($msg:expr) => {
-        $crate::logger::log_message($msg);
+        $crate::logger::log_message($msg)
     };
     ($fmt:expr, $($arg:tt)*) => {
-        $crate::logger::log_message(&format!($fmt, $($arg)*));
+        $crate::logger::log_message(&format!($fmt, $($arg)*))
     };
 }
 
@@ -60,7 +60,6 @@ pub fn log_message(message: &str) {
         if let Some(ref path) = *log_file {
             // 打开文件并追加日志
             let mut file = OpenOptions::new()
-                .write(true)
                 .append(true)
                 .create(true)
                 .open(path)

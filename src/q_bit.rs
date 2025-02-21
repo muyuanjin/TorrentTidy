@@ -4,7 +4,7 @@ use crate::logger::LogUnwrap;
 use crate::re::CompoundReplacer;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tokio::task;
+use tokio::task::JoinSet;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TorrentInfo {
@@ -114,7 +114,7 @@ pub async fn get_torrent_files(
         .json()
         .await
         .map_err(|e| format!("Failed to parse torrent files: {}", e))?;
-    
+
     Ok(torrent_files)
 }
 
@@ -166,7 +166,7 @@ pub async fn rename_files(
         .await
         .log_unwrap("Failed to get torrent files");
 
-    let mut tasks = Vec::new();
+    let mut tasks = JoinSet::new();
 
     for file in torrent_files {
         let new_path = apply_rename_rules_to_file(&file.name, compound_replacer);
@@ -180,7 +180,7 @@ pub async fn rename_files(
             let client = client.clone();
 
             // 使用 tokio::spawn 并发执行每个重命名请求
-            let task = task::spawn(async move {
+            tasks.spawn(async move {
                 let result = client
                     .post(&rename_file_url)
                     .form(&rename_file_request)
@@ -201,17 +201,14 @@ pub async fn rename_files(
                     }
                 }
             });
-            tasks.push(task);
         }
     }
-
-    // 等待所有任务完成
-    for task in tasks {
-        if let Err(e) = task.await.map_err(|e| format!("Task failed: {}", e))? {
-            log!("Error during renaming: {}", e);
+    while let Some(res) = tasks.join_next().await {
+        match res {
+            Ok(_) => {}
+            Err(err) => log!("Error during renaming: {}", err),
         }
     }
-
     Ok(())
 }
 

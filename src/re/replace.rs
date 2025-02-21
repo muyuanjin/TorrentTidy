@@ -1,26 +1,13 @@
-use std::borrow::Borrow;
-use std::sync::Arc;
-use regex::{Captures, Regex};
-use regex::Replacer;
 use crate::logger::LogUnwrap;
+use regex::{Captures, Regex};
+use std::borrow::Borrow;
 
 /// 一种支持多个正则表达式替换的替换器
 #[derive(Debug, Clone)]
 pub struct CompoundReplacer {
     compound_re: Regex,
-    group_names: Arc<Vec<String>>,
-    replacements: Arc<Vec<String>>,
-}
-
-impl Replacer for CompoundReplacer {
-    fn replace_append(&mut self, caps: &Captures<'_>, dst: &mut String) {
-        for (group_name, replacement) in self.group_names.iter().zip(self.replacements.iter()) {
-            if caps.name(group_name).is_some() {
-                dst.push_str(replacement);
-                return;
-            }
-        }
-    }
+    group_names: Vec<String>,
+    replacements: Vec<String>,
 }
 
 impl CompoundReplacer {
@@ -49,19 +36,27 @@ impl CompoundReplacer {
             .collect::<Vec<_>>()
             .join("|");
 
+        let compound_re = Regex::new(&regex_str).log_unwrap(&format!("Invalid regex: {}", regex_str));
+
         Self {
-            compound_re: Regex::new(&regex_str).log_unwrap(&format!("Invalid regex: {}", regex_str)),
-            group_names: Arc::new(group_names),
-            replacements: Arc::new(replacements),
+            compound_re,
+            group_names,
+            replacements,
         }
     }
 
-    
     pub fn replace(&self, text: &str) -> String {
-        self.compound_re.replace_all(text, self.clone()).into_owned()
+        // 使用闭包替换避免克隆整个结构体
+        self.compound_re.replace_all(text,  |caps: &Captures | {
+            for (group, replacement) in self.group_names.iter().zip(&self.replacements) {
+                if caps.name(group).is_some() {
+                    return replacement.as_str();
+                }
+            }
+            ""
+        }).into_owned()
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -69,7 +64,7 @@ mod tests {
 
     #[test]
     fn test_2025_02_18_11_33_08() {
-        fn compound_replacement(text: &str, replacer: &[(&str,&str)]) -> String {
+        fn compound_replacement(text: &str, replacer: &[(&str, &str)]) -> String {
             let replacer = CompoundReplacer::new(replacer);
             replacer.replace(text)
         }
