@@ -1,5 +1,5 @@
 use crate::logger::LogUnwrap;
-use regex::{Captures, Regex};
+use regex::{Captures, Regex, Replacer};
 use std::borrow::Borrow;
 
 /// 一种支持多个正则表达式替换的替换器
@@ -46,15 +46,21 @@ impl CompoundReplacer {
     }
 
     pub fn replace(&self, text: &str) -> String {
-        // 使用闭包替换避免克隆整个结构体
-        self.compound_re.replace_all(text,  |caps: &Captures | {
-            for (group, replacement) in self.group_names.iter().zip(&self.replacements) {
-                if caps.name(group).is_some() {
-                    return replacement.as_str();
+        struct GroupReplacer<'a>(&'a [String], &'a [String]);
+
+        impl Replacer for GroupReplacer<'_> {
+            fn replace_append(&mut self, caps: &Captures, dst: &mut String) {
+                for (name, rep) in self.0.iter().zip(self.1.iter()) {
+                    if caps.name(name).is_some() {
+                        dst.push_str(rep);
+                        return;
+                    }
                 }
+                dst.push_str(&caps[0]);
             }
-            ""
-        }).into_owned()
+        }
+
+        self.compound_re.replace_all(text, GroupReplacer(&self.group_names, &self.replacements)).into_owned()
     }
 }
 

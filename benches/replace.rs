@@ -11,33 +11,31 @@ const RULES: &[(&str, &str)] = &[
 ];
 
 fn compound_replacement(text: &str, compound_re: &Regex, replacements: &[&str]) -> String {
-    struct CompoundSwapper<'a> {
-        replacements: &'a [&'a str],
-        group_names: Vec<String>,
-    }
+    struct GroupReplacer<'a>(&'a [String], &'a [&'a str]);
 
-    impl Replacer for CompoundSwapper<'_> {
-        fn replace_append(&mut self, caps: &Captures<'_>, dst: &mut String) {
-            for (i, group_name) in self.group_names.iter().enumerate() {
-                if caps.name(group_name).is_some() {
-                    dst.push_str(self.replacements[i]);
+    impl Replacer for GroupReplacer<'_> {
+        fn replace_append(&mut self, caps: &Captures, dst: &mut String) {
+            for (name, rep) in self.0.iter().zip(self.1.iter()) {
+                if caps.name(name).is_some() {
+                    dst.push_str(rep);
                     return;
                 }
             }
+            dst.push_str(&caps[0]);
         }
     }
 
     let group_names = (0..replacements.len())
         .map(|i| format!("group{}", i))
-        .collect();
+        .collect::<Vec<String>>();
 
     compound_re
         .replace_all(
             text,
-            CompoundSwapper {
+            GroupReplacer (
+                &group_names,
                 replacements,
-                group_names,
-            },
+            ),
         )
         .into_owned()
 }
