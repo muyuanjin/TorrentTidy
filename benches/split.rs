@@ -8,10 +8,13 @@ fn split_filename(filename: &str) -> (String, String) {
         Regex::new(r"^(.*?)\.(tar\.gz|tar\.xz|tar\.bz2|cpio\.gz|cpio\.bz2|(?:7z|rar|zip)\.\d{3}|[^.]+)$").unwrap()
     });
 
-    if let Some(caps) = RE.captures(filename) {
-        (caps.get(1).unwrap().as_str().to_string(), caps.get(2).unwrap().as_str().to_string())
-    } else {
-        (filename.to_string(), String::new()) // 无扩展名的情况
+    match RE.captures(filename) {
+        Some(caps) => {
+            (caps.get(1).unwrap().as_str().to_string(), caps.get(2).unwrap().as_str().to_string())
+        }
+        _ => {
+            (filename.to_string(), String::new()) // 无扩展名的情况
+        }
     }
 }
 
