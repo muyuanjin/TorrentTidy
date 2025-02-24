@@ -32,13 +32,7 @@ async fn main() {
     // 解析命令行参数
     let args = Args::parse();
     // 配置日志输出
-    if let Some(args_log) = args.log {
-        logger::set_log_file(args_log)
-    }
-    // 提取参数 WebUI 地址、用户名、密码
-    // 提取参数 种子哈希
-    let (webui_url, torrent_hash) = (args.webui_url, args.torrent_hash);
-
+    if let Some(log_path) = args.log { logger::set_log_file(log_path) }
     // 提取参数 重命名规则，提前编译正则表达式
     let mut rules = vec![];
     for rule in args.rename_rules {
@@ -48,25 +42,21 @@ async fn main() {
             // 如果没有等号，则认为是文件路径
             let content = std::fs::read_to_string(&rule)
                 .log_unwrap("Failed to read rename rules file");
-            for chunk in content.lines().collect::<Vec<_>>().chunks(2) {
-                if chunk.len() >= 2 {
-                    rules.push((chunk[0].to_string(), chunk[1].to_string()));
-                }
-            }
+            rules.extend(
+                content.lines()
+                    .collect::<Vec<_>>()
+                    .chunks_exact(2)
+                    .map(|c| (c[0].to_string(), c[1].to_string()))
+            );
         }
     }
-
-    let compound_replacer = CompoundReplacer::new(rules);
-
+    
     let mut builder = Client::builder().cookie_store(true);
-    if !args.vpn {
-        builder = builder.no_proxy();
-    }
-    let client = builder.build().log_unwrap("Failed to create http client");
-    let client = Box::leak(Box::new(client));
-    let webui_url = Box::leak(Box::new(webui_url));
-    let torrent_hash = Box::leak(Box::new(torrent_hash));
-    let compound_replacer = Box::leak(Box::new(compound_replacer));
+    if !args.vpn { builder = builder.no_proxy(); }
+    let client = Box::leak(Box::new(builder.build().unwrap()));
+    let webui_url = Box::leak(Box::new(args.webui_url));
+    let torrent_hash = Box::leak(Box::new(args.torrent_hash));
+    let compound_replacer = Box::leak(Box::new(CompoundReplacer::new(rules)));
 
     // 如果提供了用户名和密码，则进行认证
     if let (Some(u), Some(p)) = (args.username, args.password) {
@@ -82,6 +72,10 @@ async fn main() {
     tasks.spawn(q_bit::rename_files(client, webui_url, torrent_hash, compound_replacer));
 
     while let Some(res) = tasks.join_next().await {
-        if let Err(err) = res { log!("{}", err) }
+        match res { 
+            Ok(Ok(_)) => {},
+            Ok(Err(e)) => log!("Task failed: {:?}", e),
+            Err(_) => log!("Task failed"),
+        }
     }
 }

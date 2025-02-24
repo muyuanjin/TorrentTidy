@@ -1,6 +1,5 @@
 use crate::{log, re};
 
-use crate::logger::LogUnwrap;
 use crate::re::CompoundReplacer;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -18,21 +17,6 @@ pub struct TorrentFile {
     pub index: u32,
 }
 
-#[derive(Serialize, Debug)]
-pub struct RenameRequest {
-    pub hash: String,
-    pub name: String,
-}
-
-#[derive(Serialize)]
-pub struct RenameFileRequest {
-    pub hash: String,
-    #[serde(rename = "oldPath")]
-    pub old_path: String,
-    #[serde(rename = "newPath")]
-    pub new_path: String,
-}
-
 pub async fn authenticate(
     client: &Client,
     webui_url: &str,
@@ -41,20 +25,16 @@ pub async fn authenticate(
 ) -> Result<(), String> {
     let auth_url = format!("{}/api/v2/auth/login", webui_url);
     let auth_params = [("username", username), ("password", password)];
-    let auth_response = client
+    client
         .post(&auth_url)
         .form(&auth_params)
         .send()
         .await
-        .log_unwrap("Failed to authenticate with qBittorrent WebUI");
+        .and_then(|resp| resp.error_for_status())
+        .map_err(|e| format!("Failed to authenticate: {}", e))?;
 
-    if auth_response.status().is_success() {
-        log!("Authentication successful");
-        Ok(())
-    } else {
-        log!("Authentication failed: {}", auth_response.status());
-        Err(format!("Authentication failed: {}", auth_response.status()))
-    }
+    log!("Authentication successful");
+    Ok(())
 }
 
 pub async fn get_torrent_info(
@@ -68,26 +48,20 @@ pub async fn get_torrent_info(
         .get(&info_url)
         .send()
         .await
-        .log_unwrap("Failed to fetch torrent info");
-
-    if !info_response.status().is_success() {
-        return Err(format!(
-            "Failed to fetch torrent info: {}",
-            info_response.status()
-        ));
-    }
+        .and_then(|resp| resp.error_for_status())
+        .map_err(|e| format!("Failed to fetch torrent info: {}", e))?;
 
     let torrent_info: Vec<TorrentInfo> = info_response
         .json()
         .await
-        .log_unwrap("Failed to parse torrent info");
+        .map_err(|e| format!("Failed to parse torrent info: {}", e))?;
 
     if torrent_info.is_empty() {
         return Err(format!("No torrent found with hash: {}", torrent_hash));
     }
 
     log!("Fetched torrent info for hash: {}", torrent_hash);
-    Ok(torrent_info[0].clone())
+    Ok(torrent_info.into_iter().next().unwrap())
 }
 
 pub async fn get_torrent_files(
@@ -101,14 +75,8 @@ pub async fn get_torrent_files(
         .get(&files_url)
         .send()
         .await
+        .and_then(|resp| resp.error_for_status())
         .map_err(|e| format!("Failed to fetch torrent files: {}", e))?;
-
-    if !files_response.status().is_success() {
-        return Err(format!(
-            "Failed to fetch torrent files: {}",
-            files_response.status()
-        ));
-    }
 
     let torrent_files: Vec<TorrentFile> = files_response
         .json()
@@ -124,33 +92,19 @@ pub async fn rename_torrent(
     torrent_hash: &str,
     compound_replacer: &CompoundReplacer,
 ) -> Result<(), String> {
-    let torrent = get_torrent_info(client, webui_url, torrent_hash)
-        .await
-        .log_unwrap("Failed to get torrent info");
-
+    let torrent = get_torrent_info(client, webui_url, torrent_hash).await?;
     let new_name = compound_replacer.replace(&torrent.name);
 
     if torrent.name != new_name {
-        let rename_url = format!("{}/api/v2/torrents/rename", webui_url);
-        let rename_request = RenameRequest {
-            hash: torrent.hash.clone(),
-            name: new_name.to_string(),
-        };
-        let rename_response = client
-            .post(&rename_url)
-            .form(&rename_request)
+        client
+            .post(&format!("{}/api/v2/torrents/rename", webui_url))
+            .form(&[("hash", &torrent.hash), ("name", &new_name)])
             .send()
             .await
-            .log_unwrap("Failed to rename torrent");
+            .and_then(|resp| resp.error_for_status())
+            .map_err(|e| format!("Failed to rename torrent: {}", e))?;
 
-        if !rename_response.status().is_success() {
-            return Err(format!(
-                "Failed to rename torrent: {}",
-                rename_response.status()
-            ));
-        }
-
-        log!("Torrent renamed to: {}", new_name);
+        log!("Successfully renamed torrent to: {}", new_name);
     }
 
     Ok(())
@@ -162,51 +116,38 @@ pub async fn rename_files(
     torrent_hash: &str,
     compound_replacer: &CompoundReplacer,
 ) -> Result<(), String> {
-    let torrent_files: Vec<TorrentFile> = get_torrent_files(client, webui_url, torrent_hash)
-        .await
-        .log_unwrap("Failed to get torrent files");
-
+    let torrent_files: Vec<TorrentFile> = get_torrent_files(client, webui_url, torrent_hash).await?;
+    let rename_url = format!("{webui_url}/api/v2/torrents/renameFile");
     let mut tasks = JoinSet::new();
 
+    // 并行处理每个文件重命名
     for file in torrent_files {
-        let new_path = apply_rename_rules_to_file(&file.name, compound_replacer);
-        if file.name != new_path {
-            let rename_file_url = format!("{}/api/v2/torrents/renameFile", webui_url);
-            let rename_file_request = RenameFileRequest {
-                hash: torrent_hash.to_string(),
-                old_path: file.name.clone(),
-                new_path: new_path.clone(),
-            };
-            let client = client.clone();
-
-            // 使用 tokio::spawn 并发执行每个重命名请求
-            tasks.spawn(async move {
-                let result = client
-                    .post(&rename_file_url)
-                    .form(&rename_file_request)
-                    .send()
-                    .await;
-                match result {
-                    Ok(response) if response.status().is_success() => {
-                        log!("File renamed: {} -> {}", file.name, new_path);
-                        Ok(())
-                    }
-                    Ok(response) => {
-                        log!("Failed to rename file: {} -> {}", file.name, new_path);
-                        Err(format!("Failed to rename file: {}", response.status()))
-                    }
-                    Err(e) => {
-                        log!("Failed to rename file: {} -> {}", file.name, new_path);
-                        Err(format!("Failed to rename file: {}", e))
-                    }
-                }
-            });
+        let new_name = apply_rename_rules_to_file(&file.name, compound_replacer);
+        if file.name == new_name {
+            continue;
         }
+
+        let (client, url, hash) = (client.clone(), rename_url.clone(), torrent_hash.to_owned());
+
+        tasks.spawn(async move {
+            // 发送重命名请求并处理响应
+            let result = client
+                .post(&url)
+                .form(&[("hash", &hash), ("oldPath", &file.name), ("newPath", &new_name)])
+                .send()
+                .await
+                .and_then(|resp| resp.error_for_status());
+            // 返回处理结果与元数据
+            (file.name, new_name, result)
+        });
     }
+
+    // 统一处理所有任务结果
     while let Some(res) = tasks.join_next().await {
         match res {
-            Ok(_) => {}
-            Err(err) => log!("Error during renaming: {}", err),
+            Ok((old, new, Ok(_))) => log!("Success: {} -> {}",old,new),
+            Ok((old, new, Err(e))) => log!("Failed: {} -> {} | {}",old,new,e),
+            Err(e) => log!("Task execution failed: {}",e),
         }
     }
     Ok(())
