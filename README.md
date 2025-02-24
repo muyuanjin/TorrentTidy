@@ -10,7 +10,7 @@ TorrentTidy 是一款为 qBittorrent 设计的轻量级自动化清理工具。�
 
 *   🚀 **自动化重命名**: 下载触发时立即执行重命名。
 *   🔍 **正则表达式替换**: 支持自定义多组正则表达式规则。
-*   🔒 **WebUI 集成**: 通过 qBittorrent API 同时修改软件内的任务名称和物理文件。
+*   🔒 **qBit API 集成**: 通过 qBittorrent API 同时修改软件内的任务名称和物理文件。
 *   📜 **日志记录**: 可选的文件日志记录，方便追踪操作。
 
 ## 🛠️ 安装
@@ -104,7 +104,7 @@ TorrentTidy is a lightweight automation tool designed for qBittorrent. It intell
 
 *   🚀 **Auto-Renaming**: Instant execution upon download trigger.
 *   🔍 **Regex Replacement**: Multi-rule customization support.
-*   🔒 **WebUI Integration**: Use the qBittorrent API to modify the task name and physical files in the software simultaneously.
+*   🔒 **qBit API Integration**: Use the qBittorrent API to modify the task name and physical files in the software simultaneously.
 *   📜 **Logging**: Optional file logging for operation tracking.
 
 ## 🛠️ Installation
