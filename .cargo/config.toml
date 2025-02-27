@@ -1,0 +1,6 @@
+[build]
+rustflags = ["-Zlocation-detail=none", "-Cpanic=abort"]
+
+[unstable]
+build-std = ["std", "panic_abort"]
+build-std-features = ["panic_immediate_abort", "optimize_for_size"]

@@ -1,39 +1,137 @@
-name: Release Build
+name: Release
 
 on:
   workflow_dispatch:
   push:
     tags:
-      - "v*" # 当推送 v 开头的 tag 时触发（例如 v1.0.0）
+      - '*.*.*'
+      - 'v*.*.*'
+      - '*.*.*-*'
+      - 'v*.*.*-*'
 
-# for gh release upload
 permissions:
   contents: write
 
 jobs:
-  build-and-release:
-    runs-on: windows-latest
+  linux-build:
+    runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.meta.outputs.name }}
+      version: ${{ steps.meta.outputs.version }}
+      pre: ${{ steps.meta.outputs.pre }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: stable
-          target: x86_64-pc-windows-msvc
-          override: true
+          fetch-depth: 0
+          filter: tree:0
 
-      - name: Build Release
+      - name: Get metadata
+        id: meta
+        run: |
+          # 获取所有标签以保证最新标签的准确性
+          git fetch --tags
+          
+          APP_NAME=$(grep -m1 -oP 'name = "\K[^"]+' Cargo.toml)
+          APP_VERSION=$(grep -m1 -oP 'version = "\K[^"]+' Cargo.toml)
+          echo "name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "version=$APP_VERSION" >> $GITHUB_OUTPUT
+
+          # 动态获取标签信息
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            TAG=$(git describe --tags --abbrev=0)
+            TAG=${TAG#v}
+          else
+            TAG=${GITHUB_REF#refs/tags/}
+            TAG=${TAG#v}
+          fi
+
+          # 版本一致性检查
+          if [[ "$APP_VERSION" != "$TAG" ]]; then
+            echo "ERROR: Cargo.toml version ($APP_VERSION) ≠ tag ($TAG)" >&2
+            exit 1
+          fi
+
+          # 设置预发布标识
+          [[ "$APP_VERSION" == *-* ]] && PRE=true || PRE=false
+          echo "pre=$PRE" >> $GITHUB_OUTPUT
+
+      - name: Setup OpenSSL
+        run: sudo apt-get install -y pkg-config libssl-dev lld
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Build Linux binaries
+        run: |
+          cargo install cross
+          cross build --release --target x86_64-unknown-linux-gnu
+          cross build --release --target aarch64-unknown-linux-gnu
+
+      - name: Package assets
+        run: |
+          rm -rf release && mkdir -p release
+          for target in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
+            binary_path="./target/$target/release/${{ steps.meta.outputs.name }}"
+            [ ! -f "$binary_path" ] && echo "Missing $binary_path" && exit 1
+          
+            target_name=$(echo $target | sed 's/-unknown//g')
+            package_name="${{ steps.meta.outputs.name }}-${{ steps.meta.outputs.version }}-$target_name"
+            tmp_dir="release/$package_name"
+            mkdir -p "$tmp_dir"
+            cp "$binary_path" README.md LICENSE "$tmp_dir"
+          
+            tar -C "release" -czf "release/$package_name.tar.gz" "$package_name"
+            sha256sum "release/$package_name.tar.gz" \
+              | awk '{print $1}' > "release/$package_name.tar.gz.sha256"
+          done
+
+      - name: Upload assets
+        uses: actions/upload-artifact@v4
+        with:
+          path: |
+            release/*.tar.gz
+            release/*.tar.gz.sha256
+
+  windows-build:
+    runs-on: windows-latest
+    needs: linux-build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Build Windows binary
         run: cargo build --release
 
-      - name: Create Release
+      - name: Package Windows assets
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release -Force
+          $exe = "${{ needs.linux-build.outputs.name }}.exe"
+          $dest = "release/${{ needs.linux-build.outputs.name }}-${{ needs.linux-build.outputs.version }}-x86_64-pc-windows-msvc.exe"
+          Move-Item "target/release/$exe" $dest -Force
+          (Get-FileHash $dest).Hash.ToLower() | Out-File "$dest.sha256"
+
+      - name: Download Linux assets
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - name: Upload Windows assets
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ github.ref_name }}
           files: |
-            target/release/*.exe
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            release/*.exe
+            release/*.exe.sha256
+            release/*.tar.gz
+            release/*.tar.gz.sha256
+          tag_name: v${{ needs.linux-build.outputs.version }}
+          prerelease: ${{ needs.linux-build.outputs.pre }}
+          make_latest: ${{ needs.linux-build.outputs.pre == 'false'  }}
