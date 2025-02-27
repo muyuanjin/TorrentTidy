@@ -1,5 +1,5 @@
 [build]
-rustflags = ["-Zlocation-detail=none", "-Cpanic=abort"]
+rustflags = ["-Zlocation-detail=none", "-Cpanic=abort", "-Zpanic_abort_tests"]
 
 [unstable]
 build-std = ["std", "panic_abort"]
