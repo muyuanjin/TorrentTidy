@@ -97,7 +97,7 @@ pub async fn rename_torrent(
 
     if torrent.name != new_name {
         client
-            .post(&format!("{}/api/v2/torrents/rename", webui_url))
+            .post(format!("{}/api/v2/torrents/rename", webui_url))
             .form(&[("hash", &torrent.hash), ("name", &new_name)])
             .send()
             .await

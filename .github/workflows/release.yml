@@ -56,16 +56,20 @@ jobs:
           [[ "$APP_VERSION" == *-* ]] && PRE=true || PRE=false
           echo "pre=$PRE" >> $GITHUB_OUTPUT
 
-      - name: Setup OpenSSL
-        run: sudo apt-get install -y pkg-config libssl-dev lld
-
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
 
-      - name: Build Linux binaries
+      - name: Install cross
+        run: RUSTFLAGS="" cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build x86_64 binary
         run: |
-          cargo install cross
+          export CROSS_BUILD_PRE_BUILD="dpkg --add-architecture amd64 && apt-get update -y && apt-get install -y --no-install-recommends libssl-dev:amd64 lld"
           cross build --release --target x86_64-unknown-linux-gnu
+
+      - name: Build aarch64 binary
+        run: |
+          export CROSS_BUILD_PRE_BUILD="dpkg --add-architecture arm64 && apt-get update -y && apt-get install -y --no-install-recommends libssl-dev:arm64 lld"
           cross build --release --target aarch64-unknown-linux-gnu
 
       - name: Package assets
