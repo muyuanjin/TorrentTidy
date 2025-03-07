@@ -1,5 +1,8 @@
 [build]
-rustflags = ["-Zlocation-detail=none", "-Cpanic=abort", "-Zpanic_abort_tests"]
+rustflags = ["-Zlocation-detail=none", "-Zpanic_abort_tests", "-Cpanic=abort"]
+
+[target.'cfg(all(windows, target_env = "msvc"))']
+rustflags = ["-Zlocation-detail=none", "-Zpanic_abort_tests", "-Cpanic=abort", "-Ctarget-feature=+crt-static"]
 
 [unstable]
 build-std = ["std", "panic_abort"]
